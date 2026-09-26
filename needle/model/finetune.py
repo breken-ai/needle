@@ -154,7 +154,9 @@ def generate_dataset(tools, num_samples, model=DEFAULT_MODEL, batch_size=25,
 def _collect_tools(examples):
     seen, tools = set(), []
     for example in examples:
-        for tool in example.get("tools", []):
+        for tool in example.get("tools") or []:
+            # Platform chat-format lines carry OpenAI-form tools, as from_chat reads them.
+            tool = tool.get("function", tool) if isinstance(tool, dict) else tool
             name = tool.get("name")
             if name and name not in seen:
                 seen.add(name)

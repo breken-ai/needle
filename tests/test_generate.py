@@ -101,3 +101,30 @@ def test_augment_jsonl_appends_generated(monkeypatch, tmp_path):
     out = finetune.augment_jsonl(str(src), num_samples=3, out_path=str(tmp_path / "out.jsonl"))
     lines = [line for line in open(out) if line.strip()]
     assert len(lines) == 1 + 3
+
+
+def test_augment_jsonl_reads_tools_from_chat_format_lines(monkeypatch, tmp_path):
+    from needle.model import finetune
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    tool = {"name": "set_lights", "parameters": {"type": "object", "properties": {}}}
+    chat = {"messages": [{"role": "user", "content": "lights off"},
+                         {"role": "assistant", "content": "", "tool_calls": [
+                             {"type": "function",
+                              "function": {"name": "set_lights", "arguments": "{}"}}]}],
+            "tools": [{"type": "function", "function": tool}]}
+    src = tmp_path / "platform.jsonl"
+    src.write_text(json.dumps(chat) + "\n")
+    seen, fake = [], _unique_generator()
+
+    def generator(tools, n=1, **kwargs):
+        seen.append(tools)
+        return fake(tools, n, **kwargs)
+
+    monkeypatch.setattr(finetune, "generate_examples", generator)
+    out = finetune.augment_jsonl(str(src), num_samples=3, out_path=str(tmp_path / "out.jsonl"))
+
+    assert seen and seen[0] == [tool]
+    rows = list(finetune.read_examples(out))
+    assert len(rows) == 1 + 3
+    assert all(row["tools"] == [tool] for row in rows)
