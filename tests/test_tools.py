@@ -178,3 +178,37 @@ def test_numeric_literal_and_int_enum_schema():
     assert props["port"] == {"type": "integer", "enum": [80, 443, 8080]}
     assert props["level"] == {"type": "integer", "enum": [1, 2, 3]}
     assert props["mode"] == {"type": "string", "enum": ["fast", "slow"]}
+
+
+def test_docstring_args_keep_wrapped_lines_and_stop_at_the_next_section():
+    def f(day: str, party: int = 2):
+        """Book a table.
+
+        Args:
+            day: the day to book, written
+                as YYYY-MM-DD
+            party: number of guests
+
+        Returns:
+            day: the day that was booked
+        Raises:
+            ValueError: when the restaurant is full
+        """
+
+    schema = build_schema(f)
+    props = schema["parameters"]["properties"]
+    assert props["day"]["description"] == "the day to book, written as YYYY-MM-DD"
+    assert props["party"]["description"] == "number of guests"
+    assert schema["description"] == "Book a table."
+
+
+def test_docstring_args_at_the_header_indent_still_parse():
+    def f(city: str):
+        """Look up weather.
+
+        Args:
+        city: the city to look up
+        """
+
+    props = build_schema(f)["parameters"]["properties"]
+    assert props["city"]["description"] == "the city to look up"

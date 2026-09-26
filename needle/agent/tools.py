@@ -110,11 +110,28 @@ def _parse_doc(doc):
     while i < len(lines) and lines[i].strip().lower() not in heads:
         desc.append(lines[i].strip())
         i += 1
+    head_indent = _indent(lines[i]) if i < len(lines) else 0
+    name, name_indent = None, 0
     for line in lines[i + 1:]:
+        if not line.strip():
+            continue
+        indent = _indent(line)
+        # The next section (Returns:, Raises:, ...) ends the argument list.
+        if indent <= head_indent and re.fullmatch(r"[A-Za-z][\w ]*:", line.strip()):
+            break
+        # A line indented under an argument continues its description.
+        if name and indent > name_indent:
+            args[name] += " " + line.strip()
+            continue
         m = re.match(r"\s+(\w+)\s*(?:\([^)]*\))?\s*:\s*(.+)", line)
         if m:
-            args[m.group(1)] = m.group(2).strip()
+            name, name_indent = m.group(1), indent
+            args[name] = m.group(2).strip()
     return " ".join(w for w in desc if w).strip(), args
+
+
+def _indent(line):
+    return len(line) - len(line.lstrip())
 
 
 def build_schema(fn: Callable) -> dict:
