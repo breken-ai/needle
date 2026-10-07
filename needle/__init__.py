@@ -114,6 +114,7 @@ def _base_weights_path(generation):
 
     local = os.path.join(fetch.cache_dir(generation), fetch.base_weights(generation))
     if os.path.exists(local):
+        fetch._register_download(generation)
         return local
     return fetch.fetch_weights(generation)
 

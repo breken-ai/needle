@@ -226,7 +226,8 @@ def fetch_weights(generation=2, dest_dir=None, force=False):
     """Download the base .cact archive of a generation (cached next to its engine).
 
     ``force`` fetches it again even when the cache holds a copy, so every build
-    is a download of the published model.
+    is a download of the published model.  The download is registered before the
+    cache is consulted, so a warm cache still counts as a use of the model.
     """
     import shutil
     from huggingface_hub import hf_hub_download
@@ -234,9 +235,9 @@ def fetch_weights(generation=2, dest_dir=None, force=False):
     name = base_weights(generation)
     dest_dir = dest_dir or cache_dir(generation)
     out = os.path.join(dest_dir, name)
+    _register_download(generation)
     if os.path.exists(out) and not force:
         return out
-    _register_download(generation)
     cached = hf_hub_download(repo_id=engine_repo(generation), filename=name, repo_type="model",
                              force_download=force)
     os.makedirs(dest_dir, exist_ok=True)

@@ -54,6 +54,51 @@ def test_speech_weights_come_from_their_own_repo(tmp_path, monkeypatch):
     assert whistle._weights_path() == "/opt/whistle.cact"
 
 
+def test_a_cached_model_still_counts_as_a_download(tmp_path, monkeypatch):
+    """Hugging Face counts a model by requests for its config, so a warm cache must
+    still ask for it: otherwise only a visitor's first ever load is ever counted."""
+    import needle
+    from needle.agent import whistle
+    from needle.agent import fetch
+
+    monkeypatch.setattr(os.path, "expanduser", lambda path: str(tmp_path))
+    monkeypatch.setattr(needle, "__file__", str(tmp_path / "package" / "__init__.py"))
+    monkeypatch.delenv("NEEDLE_WHISTLE_WEIGHTS", raising=False)
+
+    cache = tmp_path / ".cache" / "cactus-needle" / "whistle" / fetch.ENGINE_VERSIONS[fetch.WHISTLE]
+    cache.mkdir(parents=True)
+    (cache / "whistle.cact").write_bytes(b"weights")
+
+    asked = []
+    monkeypatch.setattr("huggingface_hub.hf_hub_download",
+                        lambda **kwargs: asked.append((kwargs["repo_id"], kwargs["filename"],
+                                                       kwargs.get("force_download"))) or str(cache / "whistle.cact"))
+    assert whistle._weights_path() == str(cache / "whistle.cact")
+    assert asked == [("Cactus-Compute/whistle", "config.json", True)]
+
+    whistle._weights_path()
+    assert len(asked) == 2, "every load counts, not just the first"
+
+
+def test_counting_a_download_never_breaks_an_offline_load(tmp_path, monkeypatch):
+    import needle
+    from needle.agent import whistle
+    from needle.agent import fetch
+
+    monkeypatch.setattr(os.path, "expanduser", lambda path: str(tmp_path))
+    monkeypatch.setattr(needle, "__file__", str(tmp_path / "package" / "__init__.py"))
+    monkeypatch.delenv("NEEDLE_WHISTLE_WEIGHTS", raising=False)
+    cache = tmp_path / ".cache" / "cactus-needle" / "whistle" / fetch.ENGINE_VERSIONS[fetch.WHISTLE]
+    cache.mkdir(parents=True)
+    (cache / "whistle.cact").write_bytes(b"weights")
+
+    def offline(**kwargs):
+        raise OSError("no network")
+
+    monkeypatch.setattr("huggingface_hub.hf_hub_download", offline)
+    assert whistle._weights_path() == str(cache / "whistle.cact")
+
+
 def test_module_level_transcribe_reuses_one_model(monkeypatch):
     import needle
     from needle.agent import whistle
